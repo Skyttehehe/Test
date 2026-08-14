@@ -46,6 +46,7 @@ type StoredRegionSelection = {
   availabilityEndUtc: Date | null;
   availabilitySourceOffsetMinutes: number | null;
   points: number;
+  softPoints: number;
 };
 
 const womFetchHeaders = (): HeadersInit => {
@@ -58,7 +59,9 @@ const womFetchHeaders = (): HeadersInit => {
   return headers;
 };
 
-const getGroupDetailsByName = async (name: string): Promise<WomGroupDetails> => {
+const getGroupDetailsByName = async (
+  name: string,
+): Promise<WomGroupDetails> => {
   const searchUrl = `${config.womBaseUrl}/groups?name=${encodeURIComponent(name)}`;
   const groupsResponse = await fetch(searchUrl, { headers: womFetchHeaders() });
 
@@ -85,7 +88,9 @@ const getGroupDetailsByName = async (name: string): Promise<WomGroupDetails> => 
   }
 
   const detailsUrl = `${config.womBaseUrl}/groups/${group.id}`;
-  const detailsResponse = await fetch(detailsUrl, { headers: womFetchHeaders() });
+  const detailsResponse = await fetch(detailsUrl, {
+    headers: womFetchHeaders(),
+  });
 
   if (!detailsResponse.ok) {
     throw new Error(`GROUP_DETAILS_FAILED (HTTP ${detailsResponse.status})`);
@@ -107,13 +112,17 @@ app.use(
         "http://localhost:3001",
         "http://127.0.0.1:3001",
         config.frontendUrl,
-        ...(config.corsOrigin ? config.corsOrigin.split(",").map((o) => o.trim()) : []),
+        ...(config.corsOrigin
+          ? config.corsOrigin.split(",").map((o) => o.trim())
+          : []),
       ]);
 
       if (!origin || allowed.has(origin)) {
         callback(null, true);
       } else {
-        console.warn(`CORS blocked origin: '${origin}'. Allowed: ${[...allowed].join(", ")}`);
+        console.warn(
+          `CORS blocked origin: '${origin}'. Allowed: ${[...allowed].join(", ")}`,
+        );
         callback(new Error(`CORS: origin '${origin}' not allowed`));
       }
     },
@@ -177,7 +186,12 @@ app.get("/health/deps", async (_req, res) => {
 app.post("/auth/login", async (req: Request, res: Response) => {
   const { clan, username } = req.body;
 
-  if (!clan || typeof clan !== "string" || !username || typeof username !== "string") {
+  if (
+    !clan ||
+    typeof clan !== "string" ||
+    !username ||
+    typeof username !== "string"
+  ) {
     return res.status(400).json({
       error: "Missing or invalid clan or username",
     });
@@ -196,7 +210,8 @@ app.post("/auth/login", async (req: Request, res: Response) => {
     // Validate clan exists and user is a member
     const groupDetails = await getGroupDetailsByName(normalizedClan);
     const isMember = groupDetails.memberships.some(
-      (membership) => membership.player.username.toLowerCase() === normalizedUsername,
+      (membership) =>
+        membership.player.username.toLowerCase() === normalizedUsername,
     );
 
     if (!isMember) {
@@ -353,7 +368,9 @@ app.post("/groups/picks", async (req: Request, res: Response) => {
     });
   }
 
-  const normalizedRegions = parsedBody.data.regions.map((region) => region.toLowerCase());
+  const normalizedRegions = parsedBody.data.regions.map((region) =>
+    region.toLowerCase(),
+  );
   const uniqueRegions = Array.from(new Set(normalizedRegions));
   const extraUnlockedCount = uniqueRegions.filter(
     (region) => region !== "karamja" && region !== "varlamore",
@@ -361,7 +378,8 @@ app.post("/groups/picks", async (req: Request, res: Response) => {
 
   if (uniqueRegions.length < 2 || uniqueRegions.length > 5) {
     return res.status(400).json({
-      error: "You must have between 2 and 5 regions selected (locked regions count toward the total)",
+      error:
+        "You must have between 2 and 5 regions selected (locked regions count toward the total)",
     });
   }
 
@@ -370,14 +388,17 @@ app.post("/groups/picks", async (req: Request, res: Response) => {
 
   if (!prisma) {
     return res.status(503).json({
-      error: "Database is offline. Run with Docker (npm run dev) or set up PostgreSQL locally and run npm run prisma:migrate",
+      error:
+        "Database is offline. Run with Docker (npm run dev) or set up PostgreSQL locally and run npm run prisma:migrate",
     });
   }
 
   const softRegions = (parsedBody.data.softRegions ?? [])
     .map((r) => r.toLowerCase())
     .filter((r) => uniqueRegions.includes(r));
-  const noteText = parsedBody.data.noteText?.trim() ? parsedBody.data.noteText.trim() : null;
+  const noteText = parsedBody.data.noteText?.trim()
+    ? parsedBody.data.noteText.trim()
+    : null;
   const availabilityStartUtc = parsedBody.data.availabilityStartUtc
     ? new Date(parsedBody.data.availabilityStartUtc)
     : null;
@@ -433,9 +454,13 @@ app.post("/groups/picks", async (req: Request, res: Response) => {
   } catch (error) {
     console.error("Save picks error:", error);
 
-    if (error instanceof Error && error.name === "PrismaClientInitializationError") {
+    if (
+      error instanceof Error &&
+      error.name === "PrismaClientInitializationError"
+    ) {
       return res.status(503).json({
-        error: "Database is offline right now. Start PostgreSQL and try saving again.",
+        error:
+          "Database is offline right now. Start PostgreSQL and try saving again.",
       });
     }
 
@@ -463,7 +488,9 @@ app.post("/groups/picks/note", async (req: Request, res: Response) => {
 
   const clanKey = parsedBody.data.clan.trim().toLowerCase();
   const usernameKey = parsedBody.data.username.trim().toLowerCase();
-  const noteText = parsedBody.data.noteText?.trim() ? parsedBody.data.noteText.trim() : null;
+  const noteText = parsedBody.data.noteText?.trim()
+    ? parsedBody.data.noteText.trim()
+    : null;
   const availabilityStartUtc = parsedBody.data.availabilityStartUtc
     ? new Date(parsedBody.data.availabilityStartUtc)
     : null;
@@ -515,7 +542,9 @@ app.post("/players/refresh-points", async (req: Request, res: Response) => {
   const parsedBody = refreshPlayerPointsSchema.safeParse(req.body);
 
   if (!parsedBody.success) {
-    return res.status(400).json({ error: "Invalid payload", details: parsedBody.error.flatten() });
+    return res
+      .status(400)
+      .json({ error: "Invalid payload", details: parsedBody.error.flatten() });
   }
 
   const { username, clan } = parsedBody.data;
@@ -526,12 +555,26 @@ app.post("/players/refresh-points", async (req: Request, res: Response) => {
 
   try {
     // eslint-disable-next-line @typescript-eslint/no-require-imports
-    const womUtils = require("@wise-old-man/utils") as { WOMClient: new (opts: { baseAPIUrl: string }) => unknown };
-    const leagueClient = new womUtils.WOMClient({ baseAPIUrl: "https://api.wiseoldman.net/league" }) as {
-      players: { updatePlayer: (name: string) => Promise<{ latestSnapshot?: { data?: { activities?: unknown } } | null }> }
+    const womUtils = require("@wise-old-man/utils") as {
+      WOMClient: new (opts: { baseAPIUrl: string }) => unknown;
+    };
+    const leagueClient = new womUtils.WOMClient({
+      baseAPIUrl: "https://api.wiseoldman.net/league",
+    }) as {
+      players: {
+        updatePlayer: (
+          name: string,
+        ) => Promise<{
+          latestSnapshot?: { data?: { activities?: unknown } } | null;
+        }>;
+      };
     };
     const playerDetails = await leagueClient.players.updatePlayer(usernameKey);
-    const leaguePointsScore = (playerDetails.latestSnapshot?.data?.activities as Record<string, { score: number }> | undefined)?.league_points?.score;
+    const leaguePointsScore = (
+      playerDetails.latestSnapshot?.data?.activities as
+        | Record<string, { score: number }>
+        | undefined
+    )?.league_points?.score;
     if (typeof leaguePointsScore === "number") {
       points = leaguePointsScore;
     }
@@ -544,7 +587,9 @@ app.post("/players/refresh-points", async (req: Request, res: Response) => {
       if (points !== null) {
         // Fresh value from WOM — upsert into DB
         await prisma.regionSelection.upsert({
-          where: { clanName_username: { clanName: clanKey, username: usernameKey } },
+          where: {
+            clanName_username: { clanName: clanKey, username: usernameKey },
+          },
           update: { points },
           create: {
             clanName: clanKey,
@@ -559,7 +604,9 @@ app.post("/players/refresh-points", async (req: Request, res: Response) => {
       } else {
         // WOM call failed — read existing points from DB
         const existing = await prisma.regionSelection.findUnique({
-          where: { clanName_username: { clanName: clanKey, username: usernameKey } },
+          where: {
+            clanName_username: { clanName: clanKey, username: usernameKey },
+          },
           select: { points: true },
         });
         points = existing?.points ?? 0;
@@ -646,7 +693,10 @@ app.get("/groups/picks", async (req: Request, res: Response) => {
     }
 
     const selectionsByUsername = new Map(
-      selections.map((selection) => [selection.username.toLowerCase(), selection]),
+      selections.map((selection) => [
+        selection.username.toLowerCase(),
+        selection,
+      ]),
     );
 
     const members = (detailsBody.memberships ?? []).map((membership) => {
@@ -654,11 +704,15 @@ app.get("/groups/picks", async (req: Request, res: Response) => {
       const selection = selectionsByUsername.get(usernameKey);
       const rawRegions = selection?.regions;
       const parsedRegions = Array.isArray(rawRegions)
-        ? rawRegions.filter((region: unknown): region is string => typeof region === "string")
+        ? rawRegions.filter(
+            (region: unknown): region is string => typeof region === "string",
+          )
         : null;
       const rawSoftRegions = selection?.softRegions;
       const parsedSoftRegions = Array.isArray(rawSoftRegions)
-        ? rawSoftRegions.filter((region: unknown): region is string => typeof region === "string")
+        ? rawSoftRegions.filter(
+            (region: unknown): region is string => typeof region === "string",
+          )
         : [];
 
       return {
@@ -669,9 +723,12 @@ app.get("/groups/picks", async (req: Request, res: Response) => {
         regions: parsedRegions,
         softRegions: parsedSoftRegions,
         noteText: selection?.noteText ?? null,
-        availabilityStartUtc: selection?.availabilityStartUtc?.toISOString() ?? null,
-        availabilityEndUtc: selection?.availabilityEndUtc?.toISOString() ?? null,
-        availabilitySourceOffsetMinutes: selection?.availabilitySourceOffsetMinutes ?? null,
+        availabilityStartUtc:
+          selection?.availabilityStartUtc?.toISOString() ?? null,
+        availabilityEndUtc:
+          selection?.availabilityEndUtc?.toISOString() ?? null,
+        availabilitySourceOffsetMinutes:
+          selection?.availabilitySourceOffsetMinutes ?? null,
         points: selection?.points ?? 0,
       };
     });
